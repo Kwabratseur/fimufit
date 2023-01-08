@@ -20,7 +20,7 @@ def TI():
 def TI2():
     a = MultiFitter(verbose=1)
     a.loadData(SimThis,initPredictors=True)
-
+    return a
 df = setupLinear()
 #TI = setupTestInstance(dflin)
 
