@@ -12,7 +12,7 @@ def setupLinear(a=33.298490,b=-7.5483425):
 def TI():
     lambdaMap = {"y": ["x", "$a", "$b"]}
     lambdaDict = {"y": lambda x, a, b: (x*a)+b}
-    a = MultiFitter()
+    a = MultiFitter(lambdaMap = lambdaMap, lambdaDict = lambdaDict)
     a.dt = 1
     return a
 
@@ -32,8 +32,8 @@ def test_Loading(TI):
     for i in TI.predictors:
         assert TI.predictors[i] is not None, "FAIL predictor {} not properly set from DF!".format(i)
     print("PASS predictor initialization")
-    #constants = {"a":33.3,"b":-7.54}
-    #TI.loadConstants(constDict = constants)
+    constants = {"a":33.3,"b":-7.54}
+    TI.loadConstants(constDict = constants)
     constants = TI.constants
     assert TI.constants["a"] == constants["a"], "FAIL Constant a not loaded properly"
     assert TI.constants["b"] == constants["b"], "FAIL Constant b not loaded properly"
@@ -77,3 +77,12 @@ def test_analyzeErrors(TI):
     print("PASS sorting analyzeErrors")
     for i in errors:
         print(i)
+
+def test_AnalyzeBulkEvolver(TI2):
+    SMap = {"U":[0.01,50.0],"C":[10,2000]}
+    #error = TI2.BulkError([25.0,1200],"Tobj")
+    #assert type(error) == type(100.0), "FAIL, BulkError does not return a float!:{}".format(error)
+    errors = TI2.BulkEvolver("Tobj",constraints=SMap)
+    assert errors[0][0] < errors[-1][0],"FAIL, BulkEvolver did not optimize errors!:{}".format(errors)
+    error = TI2.BulkError([25.0,1200],"Tobj")
+    assert type(error) == type(100.0), "FAIL, BulkError does not return a float!:{}".form
