@@ -39,6 +39,7 @@ def test_Loading(TI):
     assert TI.constants["b"] == constants["b"], "FAIL Constant b not loaded properly"
     print("PASS constant loading")
 
+
 def test_Evolving(TI):
     TI.loadData(df,initPredictors=True)
     init = TI.Simulate(1,err="y") # serves to initialize error frame, 1 iteration
