@@ -1,36 +1,36 @@
 #!/usr/bin/env python3
-"""! @brief Defines the MultiFitter classes."""
+"""! @brief Defines the MultiFitter classes.
 
-##
-# @file mufit.py
-#
-# @brief Defines the MultiFitter class.
-#
-# @section description_MultiFitter Description
-# Defines the base and end user class for all fitting purposes, model and data agnostic
-# - multifitter
-#
-# @section libraries_MultiFitter Libraries/Modules
-# - random standard library (https://docs.python.org/3/library/random.html)
-#   - Access to randint function.
-# - pandas dataframe library
-# - datetime standard library
-# - matplotlib plotting Library
-# - plotly plotting Library
-# - itertools standard library
-# - seaborn heatmap library
-#
-# @section notes_MultiFitter Notes
-# - Comments are Doxygen compatible.
-#
-# @section todo_MultiFitter TODO
-# - many. - setting best parameters for instance
-#
-# @section author_sensors Author(s)
-# - Created by Jeroen van 't Ende 27/11/2022
-#
-# Copyright (c) 2022 Jeroen van 't Ende.  All rights reserved.
+  @file mufit.py
 
+  @brief Defines the MultiFitter class.
+
+  @section description_MultiFitter Description
+  Defines the base and end user class for all fitting purposes, model and data agnostic
+  - multifitter
+
+  @section libraries_MultiFitter Libraries/Modules
+  - random standard library (https://docs.python.org/3/library/random.html)
+    - Access to randint function.
+  - pandas dataframe library
+  - datetime standard library
+  - matplotlib plotting Library
+  - plotly plotting Library
+  - itertools standard library
+  - seaborn heatmap library
+
+  @section notes_MultiFitter Notes
+  - Comments are Doxygen compatible.
+
+  @section todo_MultiFitter TODO
+  - many.
+  - setting best parameters for instance
+
+  @section author_sensors Author(s)
+  - Created by Jeroen van 't Ende 27/11/2022
+
+  Copyright (c) 2025 Jeroen van 't Ende.  All rights reserved.
+"""
 import pandas as pd # dataframe module, allows for easy measurement handling and resampling
 from datetime import datetime # framework to interpret time
 import plotly.graph_objects as go # interactive plotting framework
@@ -39,6 +39,8 @@ from scipy.optimize import minimize, least_squares # scientific python optimizat
 #pd.options.plotting.backend = "plotly" # set interactive plotting framework as default to use, enables df.plot() or df[["selection1","selection2","etc"]].plot()
 import random, itertools
 import seaborn as sn
+import os
+import json
 
 
 ## Example profile dictionary as input for the generator
@@ -50,11 +52,11 @@ Profile = {"Tenv":[10,20,18,40,25,60,18,80,8,100],
 def ProfileGenerator(length,Profile):
     """! Profile generator function, returns a dataframe with the profile.
 
-        @param  length  the length of the dataset to be generated
-        @param Profile  A dictionary with name:array pairs where the array has format [value,upto,value,upto,etc....]
-        @param verbose  verbose boolean generates more output for debugging
+    @param  length  the length of the dataset to be generated
+    @param Profile  A dictionary with name:array pairs where the array has format [value,upto,value,upto,etc....]
+    @param verbose  verbose boolean generates more output for debugging
 
-        @return A Pandas dataFrame of length with the specified profile
+    @return A Pandas dataFrame of length with the specified profile
     """
     df = pd.DataFrame(index=range(length)) # instantiate dataframe
     for i,x in enumerate(Profile): # for all values that need to be put in column, in this case Ta, Pe, Ti
@@ -73,7 +75,7 @@ class MultiFitter(object):
 
     Defines the base class which enables parameter fitting, loading data, visualization, simulation
     """
-    def __init__(self,lambdaMap=None,lambdaDict=None,verbose=0):
+    def __init__(self,Instance,lambdaMap=None,lambdaDict=None,verbose=0):
         """! The multifitter base class initializer.
 
         @param lambdaMap  lambdaMap dictionary with array of variables, constants have a prefix of $ when they have to be fitted, * if they are truly constant
@@ -113,9 +115,10 @@ class MultiFitter(object):
         ## The predictors calculated by applying lambdafunctions
         self.predictors = {}
         ## The error array contains [index, error, [constants]]
+        self.index = 0
         self.error = []
         self.dt = 1
-
+        self.Instance = "{}.json".format(Instance)
         for i in self.lambdaMap:
             for j in self.lambdaMap[i]:
                 if "*" in j:
@@ -132,11 +135,38 @@ class MultiFitter(object):
         for i in self.constants:
             columns.append(i)
         self.columns = columns
+
+        Files = os.listdir()
+        if self.Instance in Files:
+            if self.Verbose >= 1:
+                print("Stored data found..")
+            self.LoadedInstance = self.storeJson()
+            self.loadConstants(self.LoadedInstance)
+        else:
+            if self.Verbose >= 1:
+                print("No data stored yet.. Creating file")
+            self.storeJson(data=self.constants)
+
         if self.Verbose >= 1:
             print(self.solveList)
             print(self.constants)
             print(self.variables)
             print(self.predictors)
+
+    def storeJson(self,data=None):
+        if data is not None:
+            with open(self.Instance, 'w') as f:
+                json.dump(data, f)
+                f.close()
+            datafmt = {"date":str(datetime.now()), "index":self.index, "constants":data}
+            with open("Backup_constants.json", "a") as f:
+                json.dump(datafmt, f)
+                f.close()
+        else:
+            with open(self.Instance, 'r') as f:
+                data = json.load(f)
+                f.close()
+            return data
 
     def parameters(self):
         """! Retrieves all current variables, constants and predictors
@@ -186,10 +216,19 @@ class MultiFitter(object):
         if constDict is not None:
             if self.Verbose >= 4:
                 print("Loading new constants: {}".format(constDict))
-            for i in constDict:
-                self.constants[i] = constDict[i]
-                if i in self.solveList:
-                    self.solveList[i] = constDict[i]
+            if constDict == "best":
+                self.LoadedInstance = self.storeJson()
+                for i in self.LoadedInstance:
+                    self.constants[i] = self.LoadedInstance[i]
+                    if i in self.solveList:
+                        self.solveList[i] = self.LoadedInstance[i]
+                if self.Verbose >= 4:
+                    print("Loaded stored params: {}".format(self.constants))
+            else:
+                for i in constDict:
+                    self.constants[i] = constDict[i]
+                    if i in self.solveList:
+                        self.solveList[i] = constDict[i]
         else:
             print("Error, expecting a dict in format: {}".format(self.constants))
 
@@ -214,8 +253,12 @@ class MultiFitter(object):
         @param Array  An array formatted to the same format as self.Constants
         """
         copy = self.constants.copy()
-        for i,x in enumerate(self.constants):
-            copy[x] = Array[i]
+        for i,x in enumerate(self.solveList):
+            try:
+                copy[x] = Array[i]
+            except IndexError:
+                if self.Verbose >= 2:
+                    print("{} : index {} not defined in Array, not solved for!".format(x,i))
         self.loadConstants(copy)
 
     def dictToArray(self,Dict):
@@ -226,7 +269,6 @@ class MultiFitter(object):
         @return  An array with the dictionaries values
         """
         return [Dict[i] for i in Dict]
-
 
     def dictSlice(self,index):
         """! return a dictionary slice from the loaded dataframe
@@ -251,8 +293,6 @@ class MultiFitter(object):
         if hasattr(self, 'SDF'):
             self.loadPredictors(self.SDF.iloc[self.index].to_dict())
             self.loadVariables(self.SDF.iloc[self.index].to_dict())
-
-
 
     def scipyOptimize(self,constraints=None, err=None, steps = None, iterations=1000, solver=None, lsq = False):
         """! Do parameter optimization with scipy.optimize
@@ -290,21 +330,24 @@ class MultiFitter(object):
         return result
 
 
-    def BulkError(self,params,err):
-        """! Do optimization run for scipy solver or built-in solver.
+    def BulkError(self,params,err, Iterations=None):
+        """! Do optimization run for scipy solver
 
-        @param params Array parameter array, generated by solver. Must be indexed the same as <solveList>
-        @param err String error objective name
+        @param params: parameter array, generated by scipy.
+        @param err: error objective
 
-        @return Return The accumulated error for the last simulation run
+        @return  The accumulated error for the last simulation run
         """
-        self.resetIndex()
         if self.Verbose >= 3:
             print(params, err)
         for i,x in enumerate(self.solveList):
             self.constants[x] = params[i]
             self.solveList[x] = params[i]
-        errors = self.Simulate(int(self.dataLength),err=err)[-self.dataLength:]
+        if Iterations is None:
+            self.resetIndex()
+            errors = self.Simulate(int(self.dataLength),err=err)[-self.dataLength:]
+        else:
+            errors = self.Simulate(int(Iterations),err=err)[-Iterations:]
         accerr = 0
         for i in errors:
             accerr += i[1]
@@ -356,18 +399,14 @@ class MultiFitter(object):
 
 
     def Fiddler(self,curr,previousR,currentR,constantIndex): # wqe want to compare the previous error and previous previous error, to at least determine the best "direction"
+        """! Parameter transformer/gradient descent algorithm
 
-        """! Parameter transformer/gradient descent algorithm.
-            A random number in range [0,10] is generated, if the error was reduced compared to last run, a 50% chance of change of direction is used(flip the sign).
-            A parameter change of at max 10% is permitted, the change will be anywhere between 0.001 and 10%.
-            If the previous error was lower, the sign is flipped with a 90% chance, reversing the search for parameters.
+        @param curr  current parameter that will be transformed, change is proportional to this.
+        @param previousR  previous error array, this is used to determine the best direction to change towards
+        @param currentR  current error array, as mentioned, to implement some form of gradient descent
+        @param constantIndex  index of the current constant that is modified, needed to know what parameter in error array to look at
 
-            @param curr  current parameter that will be transformed, change is proportional to this.
-            @param previousR  previous error array, this is used to determine the best direction to change towards
-            @param currentR  current error array, as mentioned, to implement some form of gradient descent
-            @param constantIndex  index of the current constant that is modified, needed to know what parameter in error array to look at
-
-            @return  A new constant to try
+        @return  A new constant to try
         """
         sign = random.randint(0,10)
         if self.Verbose >= 5:
@@ -395,21 +434,12 @@ class MultiFitter(object):
         return curr + (curr*Amount*sign)
 
 
-    def BulkEvolver(self, err, constraints = None, N=10, repeats=25):
-        """! Runs BulkError N * repeats * <parameter_in_solvelist> times. For each consecutive run, <fiddler> is used to generate a new set of parameters.
-
-            @param err String error objective, target for minimalization
-            @param constraints Dictionary name:[min,max] pairs with constraints for parameter search
-            @param N Integer Amount of times the inner loop (individual parameter optimization) must be run, default = 10
-            @param repeats Integer Amount of times the outer loop, (consecutive parameter optimization) must be run, default = 25
-
-            @return Return Array A best first sorted array of [[error,c0,c1,cn...],[error,c0...]] with parameters
-        """
+    def BulkEvolver(self, err, constraints = None, N=10, repeats=25, Iterations = None):
         self.Simulate(1,err=err)
         ##Instantiation of errorlist
         Errorlist = []
         params = self.dictToArray(self.solveList)
-        error = self.BulkError(params,err)
+        error = self.BulkError(params,err, Iterations=Iterations)
         Errorlist.append([error])
         for i in self.solveList:
             Errorlist[-1].append(self.solveList[i])
@@ -425,7 +455,7 @@ class MultiFitter(object):
                 for i in range(N):
                     params = self.dictToArray(self.solveList)
                     p1 = params[constantIndex]
-                    error = self.BulkError(params,err)
+                    error = self.BulkError(params,err, Iterations=Iterations)
                     Errorlist.append([error])
                     for i in self.solveList:
                         Errorlist[-1].append(self.solveList[i])
@@ -443,6 +473,7 @@ class MultiFitter(object):
                     err0 = Errorlist[-2]
         Errorlist.sort()
         self.ArrayToConstants(Errorlist[0][1:])
+        self.storeJson(self.constants)
         if self.Verbose >= 1:
             print("Best parameters found so far: {}".format(Errorlist[0]))
         return Errorlist
@@ -558,6 +589,7 @@ class MultiFitter(object):
         for i in errors:
             for j,x in enumerate(avgs):
                 avgs[j] = (i[j]+x)/2
+        self.storeJson(self.constants)
         if self.Verbose >= 1:
             print("best constants, lowest error (index):{}".format(self.constants))
         return errors
@@ -578,6 +610,7 @@ class MultiFitter(object):
                     zaxis_title=i),
                     width=900,
                     margin=dict(r=20, b=10, l=10, t=10))
+            fig.write_html("Mufit_Error_{}.html".format(i), auto_open=False)
             fig.show()
 
     def setSolveList(self,Array=None,Dict=None):
@@ -605,11 +638,11 @@ class MultiFitter(object):
     def Simulate(self,steps,err=None,write=True):
         """! Apply the model (Calculate) to the loaded data, does not strictly need a DF
 
-            @param steps  amount of steps to simulate
-            @param err  name of predictor (and dataframe column) that will be used for error determination; prediction target.
-            @param write  if set to false, no data is written to SDF. This is used internally to test errors without tainting SDF
+        @param steps  amount of steps to simulate
+        @param err  name of predictor (and dataframe column) that will be used for error determination; prediction target.
+        @param write  if set to false, no data is written to SDF. This is used internally to test errors without tainting SDF
 
-            @return  An array with errors in the format of [index,error,c0,c1,cn....] if err is defined, otherwise True
+        @return  An array with errors in the format of [index,error,c0,c1,cn....] if err is defined, otherwise True
         """
         for i in range(steps):
             try:
@@ -650,16 +683,17 @@ class MultiFitter(object):
             self.Evolver(err,steps)
         return self.error
 
+
 def main():
     """! Example main to run if file is not being imported
     """
-    a = MultiFitter(verbose=False)
+    a = MultiFitter("testInstance",verbose=False)
     a.loadData(SimThis)
     a.loadConstants({"C":120.0,"U":1.0})
 
     df = pd.DataFrame(a.error,columns=["index","error","c0","c1"])
     a.dt = 60.0
-    pd.DataFrame(a.SimSolve(2,2,"Tobj"),columns=["index","error","c0","c1"]).plot()
+    pd.DataFrame(a.SimSolve(2,2,"Tobj"),columns=["index","error","y","ypred","c0","c1"]).plot()
 
 if __name__ == "__main__":
     print("Mufit is being run directly")
