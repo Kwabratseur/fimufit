@@ -2,7 +2,7 @@
 name = "mufit"
 version = "0.0.1"
 authors = [
-  { name="Jeroen van \'t Ende", email="jeroen.vantende@outlook.com" },
+  { name='Jeroen van t Ende', email="jeroen.vantende@outlook.com" },
 ]
 description = "A small Solver"
 readme = "README.md"
