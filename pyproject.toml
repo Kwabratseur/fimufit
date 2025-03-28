@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools >= 40.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "mufit"
 version = "0.0.1"
@@ -12,6 +16,15 @@ classifiers = [
     "Operating System :: OS Independent",
     "License :: OSI Approved :: MIT License",
 ]
+dependencies = [
+    "pandas",
+    "plotly",
+    "matplotlib",
+    "seaborn",
+    "scipy"
+]
+[project.scripts]
+mufit = "mufit:main"
 
 [project.urls]
 Homepage = "https://github.com/Kwabratseur/fimufit"
